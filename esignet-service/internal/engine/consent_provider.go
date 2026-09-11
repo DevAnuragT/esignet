@@ -166,8 +166,16 @@ func (p *consentProvider) RecordConsent(ctx context.Context, _, appID, userID st
 	if decisions != nil {
 		filteredPurposes := make([]providers.PurposeDecision, 0, len(decisions.Purposes))
 		for _, purpose := range decisions.Purposes {
-			isAttributesPurpose := strings.HasPrefix(purpose.PurposeName, attributesPurpose)
-			isPermissionsPurpose := strings.HasPrefix(purpose.PurposeName, permissionsPurpose)
+			ns := namespaceFromPurposeName(purpose.PurposeName)
+			if ns == "" {
+				p.logger.Warn(ctx, "Consent decisions purposeName is not recognised",
+					applog.String("purposeName", purpose.PurposeName))
+				return nil, clientError("consent_purpose_not_recognized",
+					fmt.Errorf("The consent decisions purposeName is not recognised"))
+			}
+
+			isAttributesPurpose := ns == providers.NamespaceAttribute
+			isPermissionsPurpose := ns == providers.NamespacePermission
 
 			elements := purpose.Elements
 			if isAttributesPurpose || isPermissionsPurpose {

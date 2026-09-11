@@ -415,6 +415,34 @@ func (ts *ConsentProviderTestSuite) TestRecordConsent_EssentialAttributeDenied()
 	ts.Require().Empty(q.lastUpsert.ClientID, "consent record must not be persisted when essential consent is denied")
 }
 
+func (ts *ConsentProviderTestSuite) TestRecordConsent_UnrecognisedPurposeName() {
+	q := &consentStubQuerier{}
+	p := newConsentTestProvider(q, nil)
+
+	meta := clientIDMeta("client-1")
+	meta[runtimeKeyClaims] = []string{`{"userinfo":{"email":null}}`}
+
+	decisions := &providers.ConsentDecisions{
+		Purposes: []providers.PurposeDecision{
+			{
+				PurposeName: "unknown-namespace:app-1",
+				Approved:    true,
+				Elements: []providers.ElementDecision{
+					{Name: "email", Approved: true},
+				},
+			},
+		},
+	}
+
+	consent, svcErr := p.RecordConsent(context.Background(), "ou-1", "app-1", "user-1",
+		decisions, "session-token", 3600, meta)
+	ts.Require().Nil(consent)
+	ts.Require().NotNil(svcErr)
+	ts.Require().Equal("consent_purpose_not_recognized", svcErr.Code)
+	ts.Require().Equal("The consent decisions purposeName is not recognised", svcErr.ErrorDescription.DefaultValue)
+	ts.Require().Empty(q.lastUpsert.ClientID, "consent record must not be persisted when purposeName is unrecognized")
+}
+
 func (ts *ConsentProviderTestSuite) TestBuildPrompt_EmptyReturnsNil() {
 	p := newConsentTestProvider(&consentStubQuerier{}, nil)
 	req := &requestedConsent{claimsRequest: map[string]any{}}
